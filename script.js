@@ -392,9 +392,12 @@ document.getElementById('copy-btn').addEventListener('click', () => {
 });
 
 // Discount functionality
-document.getElementById('apply-discount-btn').addEventListener('click', () => {
-  const code = document.getElementById('discount-input').value.trim();
-  const msgEl = document.getElementById('discount-message');
+const applyDiscountBtn = document.getElementById('apply-discount-btn');
+const discountInputEl = document.getElementById('discount-input');
+const msgEl = document.getElementById('discount-message');
+
+function handleDiscount() {
+  const code = discountInputEl.value.trim().toLowerCase();
   
   if (code === 'opcms' || code === 'ybsm100' || code === '15day') {
     state.discountCode = code;
@@ -411,6 +414,11 @@ document.getElementById('apply-discount-btn').addEventListener('click', () => {
     }
     render();
   }
+}
+
+applyDiscountBtn.addEventListener('click', handleDiscount);
+discountInputEl.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') handleDiscount();
 });
 
 // Search functionality
