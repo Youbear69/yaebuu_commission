@@ -414,6 +414,5 @@ function handleSearch() {
   }
 }
 
-// Initial render
 updateWizardNav();
 render();
