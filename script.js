@@ -193,7 +193,11 @@ function calculateTotal() {
     total += pricing.font[state.font];
   }
   
-  if (state.motionGraphics) total += pricing.motionGraphics[state.motionGraphics];
+  if (state.motionGraphics) {
+    let mPrice = pricing.motionGraphics[state.motionGraphics];
+    if (state.motionGraphics === 'add' && state.subtitle === 'add') mPrice = 100;
+    total += mPrice;
+  }
   
   if ((state.version === 'add1' || state.version === 'add2') && state.extra1) {
     total += pricing.extra1[state.extra1];
@@ -263,6 +267,14 @@ function render() {
     currentClipTotal = clipTotal;
   }
 
+  // Dynamic Motion Graphics Price UI
+  const motionPriceEl = document.getElementById('motion-price-display');
+  if (state.subtitle === 'add') {
+    motionPriceEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-secondary); margin-right: 5px;">+200</span> <span style="color: var(--success-color);">+100</span>`;
+  } else {
+    motionPriceEl.innerHTML = `+200`;
+  }
+
   // Update active cards
   document.querySelectorAll('.option-card').forEach(card => {
     const group = card.getAttribute('data-group');
@@ -313,7 +325,11 @@ function render() {
     }
   }
   
-  if (state.motionGraphics) addSummaryItem(labels.motionGraphics[state.motionGraphics], pricing.motionGraphics[state.motionGraphics]);
+  if (state.motionGraphics) {
+    let mPrice = pricing.motionGraphics[state.motionGraphics];
+    if (state.motionGraphics === 'add' && state.subtitle === 'add') mPrice = 100;
+    addSummaryItem(labels.motionGraphics[state.motionGraphics], mPrice);
+  }
   
   if (state.version) {
     addSummaryItem(`เวอร์ชั่น: ${labels.version[state.version]}`, 0);
@@ -391,7 +407,12 @@ function handleSearch() {
         addItem(`- ${labels.font[pState.font]}`, pricing.font[pState.font]); total += pricing.font[pState.font];
       }
     }
-    if (pState.motionGraphics) { addItem(labels.motionGraphics[pState.motionGraphics], pricing.motionGraphics[pState.motionGraphics]); total += pricing.motionGraphics[pState.motionGraphics]; }
+    if (pState.motionGraphics) { 
+      let mPrice = pricing.motionGraphics[pState.motionGraphics];
+      if (pState.motionGraphics === 'add' && pState.subtitle === 'add') mPrice = 100;
+      addItem(labels.motionGraphics[pState.motionGraphics], mPrice); 
+      total += mPrice; 
+    }
     if (pState.version) {
       addItem(`เวอร์ชั่น: ${labels.version[pState.version]}`, 0);
       if ((pState.version === 'add1' || pState.version === 'add2') && pState.extra1) {
@@ -414,5 +435,6 @@ function handleSearch() {
   }
 }
 
+// Initial render
 updateWizardNav();
 render();
