@@ -12,10 +12,10 @@ let state = {
 
 const pricing = {
   clipMinutes: 400,
-  videoFile: { cut: 0, uncut: 200 },
-  subtitle: { none: 0, add: 200 },
-  font: { free: 0, paid: 400 },
-  motionGraphics: { none: 0, add: 300 },
+  videoFile: { cut: 0, uncut: 150 },
+  subtitle: { none: 0, add: 150 },
+  font: { free: 0, paid: 0 },
+  motionGraphics: { none: 0, add: 200 },
   extra1: { version: 200, horizontal: 600 },
   extra2: { version: 200, horizontal: 600 },
   thumbnail: { none: 0, add: 100 }
