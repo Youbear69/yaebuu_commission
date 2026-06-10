@@ -7,7 +7,8 @@ let state = {
   version: null,
   extra1: null,
   extra2: null,
-  thumbnail: null
+  thumbnail: null,
+  discountCode: null
 };
 
 const pricing = {
@@ -153,10 +154,12 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   if (confirm('คุณต้องการรีเซ็ตการเลือกทั้งหมดใช่หรือไม่?')) {
     state = {
       clipMinutes: 1, videoFile: null, subtitle: null, font: null,
-      motionGraphics: null, version: null, extra1: null, extra2: null, thumbnail: null
+      motionGraphics: null, version: null, extra1: null, extra2: null, thumbnail: null, discountCode: null
     };
     currentClipTotal = 0;
     currentFooterTotal = 0;
+    document.getElementById('discount-input').value = '';
+    document.getElementById('discount-message').innerText = '';
     showStep(1);
   }
 });
@@ -223,6 +226,12 @@ function encodeState() {
   if (state.extra1 === 'horizontal') bits |= (1 << 6);
   if (state.extra2 === 'horizontal') bits |= (1 << 7);
   if (state.thumbnail === 'add') bits |= (1 << 8);
+  
+  let discountCodeIdx = 0;
+  if (state.discountCode === 'opcms') discountCodeIdx = 1;
+  else if (state.discountCode === 'ybsm100') discountCodeIdx = 2;
+  else if (state.discountCode === '15day') discountCodeIdx = 3;
+  bits |= (discountCodeIdx << 9);
 
   // Convert bits to hex
   const hex = bits.toString(16).padStart(3, '0');
@@ -251,6 +260,12 @@ function decodeState(codeStr) {
   state.extra1 = (bits & (1 << 6)) ? 'horizontal' : 'version';
   state.extra2 = (bits & (1 << 7)) ? 'horizontal' : 'version';
   state.thumbnail = (bits & (1 << 8)) ? 'add' : 'none';
+  
+  const dCode = (bits >> 9) & 3;
+  if (dCode === 1) state.discountCode = 'opcms';
+  else if (dCode === 2) state.discountCode = 'ybsm100';
+  else if (dCode === 3) state.discountCode = '15day';
+  else state.discountCode = null;
 }
 
 function render() {
@@ -294,16 +309,8 @@ function render() {
   extraVersion1El.style.display = (state.version === 'add1' || state.version === 'add2') ? 'block' : 'none';
   extraVersion2El.style.display = state.version === 'add2' ? 'block' : 'none';
 
-  // Calculate price
-  const total = calculateTotal();
-  if (currentFooterTotal !== total) {
-    if (currentFooterTotal === 0) {
-      footerTotalEl.innerText = total.toLocaleString();
-    } else {
-      animateValueWithSuffix(footerTotalEl, currentFooterTotal, total, 400, '');
-    }
-    currentFooterTotal = total;
-  }
+  // Calculate base price
+  let total = calculateTotal();
 
   // Update Summary List
   summaryListEl.innerHTML = '';
@@ -343,6 +350,30 @@ function render() {
   
   if (state.thumbnail) addSummaryItem(labels.thumbnail[state.thumbnail], pricing.thumbnail[state.thumbnail]);
 
+  // Apply Discount
+  let discountAmount = 0;
+  if (state.discountCode === 'opcms') discountAmount = Math.floor(total * 0.10);
+  else if (state.discountCode === 'ybsm100') discountAmount = total;
+  else if (state.discountCode === '15day') discountAmount = 100;
+  
+  if (discountAmount > 0) {
+    if (discountAmount > total) discountAmount = total;
+    const li = document.createElement('li');
+    li.innerHTML = `<span>ส่วนลด (โค้ด: ${state.discountCode})</span><span style="color: var(--success-color);">- ${discountAmount.toLocaleString()} ฿</span>`;
+    summaryListEl.appendChild(li);
+    total -= discountAmount;
+  }
+
+  // Update Footer Total
+  if (currentFooterTotal !== total) {
+    if (currentFooterTotal === 0) {
+      footerTotalEl.innerText = total.toLocaleString();
+    } else {
+      animateValueWithSuffix(footerTotalEl, currentFooterTotal, total, 400, '');
+    }
+    currentFooterTotal = total;
+  }
+
   // Update generated code if we are at the last step (or just always generate)
   // We should enforce generation works even partially, but since we encode to 0 if null, it's fine.
   if (currentStep === totalSteps) {
@@ -358,6 +389,28 @@ document.getElementById('copy-btn').addEventListener('click', () => {
     btn.innerText = 'ก็อปปี้แล้ว!';
     setTimeout(() => btn.innerText = 'ก็อปปี้', 2000);
   });
+});
+
+// Discount functionality
+document.getElementById('apply-discount-btn').addEventListener('click', () => {
+  const code = document.getElementById('discount-input').value.trim();
+  const msgEl = document.getElementById('discount-message');
+  
+  if (code === 'opcms' || code === 'ybsm100' || code === '15day') {
+    state.discountCode = code;
+    msgEl.innerText = 'ใช้โค้ดส่วนลดสำเร็จ!';
+    msgEl.style.color = 'var(--success-color)';
+    render();
+  } else {
+    state.discountCode = null;
+    if (code === '') {
+       msgEl.innerText = '';
+    } else {
+       msgEl.innerText = 'โค้ดส่วนลดไม่ถูกต้อง';
+       msgEl.style.color = '#ff453a';
+    }
+    render();
+  }
 });
 
 // Search functionality
@@ -388,6 +441,12 @@ function handleSearch() {
     pState.extra1 = (bits & (1 << 6)) ? 'horizontal' : 'version';
     pState.extra2 = (bits & (1 << 7)) ? 'horizontal' : 'version';
     pState.thumbnail = (bits & (1 << 8)) ? 'add' : 'none';
+    
+    const dCode = (bits >> 9) & 3;
+    if (dCode === 1) pState.discountCode = 'opcms';
+    else if (dCode === 2) pState.discountCode = 'ybsm100';
+    else if (dCode === 3) pState.discountCode = '15day';
+    else pState.discountCode = null;
     
     // Populate receipt modal
     receiptListEl.innerHTML = '';
@@ -423,6 +482,19 @@ function handleSearch() {
       }
     }
     if (pState.thumbnail) { addItem(labels.thumbnail[pState.thumbnail], pricing.thumbnail[pState.thumbnail]); total += pricing.thumbnail[pState.thumbnail]; }
+
+    let discountAmount = 0;
+    if (pState.discountCode === 'opcms') discountAmount = Math.floor(total * 0.10);
+    else if (pState.discountCode === 'ybsm100') discountAmount = total;
+    else if (pState.discountCode === '15day') discountAmount = 100;
+    
+    if (discountAmount > 0) {
+      if (discountAmount > total) discountAmount = total;
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="receipt-label">ส่วนลด (โค้ด: ${pState.discountCode})</span><span class="receipt-price" style="color: var(--success-color);">- ${discountAmount.toLocaleString()} ฿</span>`;
+      receiptListEl.appendChild(li);
+      total -= discountAmount;
+    }
 
     receiptTotalEl.innerText = total.toLocaleString();
 
