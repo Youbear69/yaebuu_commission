@@ -8,18 +8,21 @@ let state = {
   extra1: null,
   extra2: null,
   thumbnail: null,
-  discountCode: null
+  discountCode: null,
+  note: '',
+  link: ''
 };
 
 const pricing = {
-  clipMinutes: 400,
+  clipBase: 400,
+  clipPerExtra: 150,
   videoFile: { cut: 0, uncut: 150 },
-  subtitle: { none: 0, add: 150 },
+  subtitle: { none: 0, add: 100 },
   font: { free: 0, paid: 0 },
-  motionGraphics: { none: 0, add: 200 },
+  motionGraphics: { none: 0, add: 100 },
   extra1: { version: 200, horizontal: 600 },
   extra2: { version: 200, horizontal: 600 },
-  thumbnail: { none: 0, add: 100 }
+  thumbnail: { none: 0, add: 50 }
 };
 
 const labels = {
@@ -35,7 +38,7 @@ const labels = {
 
 // Wizard State
 let currentStep = 1;
-const totalSteps = 7;
+const totalSteps = 8;
 
 // Elements
 const clipMinutesEl = document.getElementById('clip-minutes');
@@ -57,10 +60,28 @@ const closeModalBtn = document.getElementById('close-modal-btn');
 const searchCodeEl = document.getElementById('search-code');
 const searchBtn = document.getElementById('search-btn');
 
+const orderNoteEl = document.getElementById('order-note');
+const orderLinkEl = document.getElementById('order-link');
+
+if (orderNoteEl) orderNoteEl.addEventListener('input', (e) => { state.note = e.target.value; render(); });
+if (orderLinkEl) orderLinkEl.addEventListener('input', (e) => { state.link = e.target.value; render(); });
+
 const receiptModal = document.getElementById('receipt-modal');
 const closeReceiptBtn = document.getElementById('close-receipt-btn');
 const receiptListEl = document.getElementById('receipt-list');
 const receiptTotalEl = document.getElementById('receipt-total');
+
+// New View & Tab Elements
+const tabCalc = document.getElementById('tab-calc');
+const tabPortfolio = document.getElementById('tab-portfolio');
+const calculatorView = document.getElementById('calculator-view');
+const portfolioView = document.getElementById('portfolio-view');
+const stickyFooter = document.querySelector('.sticky-footer');
+
+const videoModal = document.getElementById('video-modal');
+const closeVideoBtn = document.getElementById('close-video-btn');
+const videoModalTitle = document.getElementById('video-modal-title');
+const videoContainer = document.querySelector('.video-container');
 
 // --- Animation ---
 function animateValueWithSuffix(obj, start, end, duration, suffix = '') {
@@ -94,6 +115,20 @@ function updateWizardNav() {
     wizardNav.classList.add('hidden'); // Hide next/prev on summary page
   } else {
     wizardNav.classList.remove('hidden');
+  }
+
+  // Update Progress Bar
+  const progressBar = document.getElementById('progress-bar');
+  if (progressBar) {
+    const progressPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;
+    progressBar.style.width = progressPercent + '%';
+    if (currentStep === totalSteps) {
+      progressBar.classList.remove('blinking');
+      progressBar.classList.add('rainbow-bar');
+    } else {
+      progressBar.classList.add('blinking');
+      progressBar.classList.remove('rainbow-bar');
+    }
   }
 }
 
@@ -186,20 +221,23 @@ window.selectOption = function(group, value) {
   render();
 }
 
+function getClipPrice(minutes) {
+  // เรทราคางาน: เริ่มต้น 1 นาทีแรก 400 บาท, หากเกินกว่านั้น +นาทีละ 150 บาท
+  return pricing.clipBase + (Math.max(0, minutes - 1) * pricing.clipPerExtra);
+}
+
 function calculateTotal() {
-  let total = state.clipMinutes * pricing.clipMinutes;
+  let total = getClipPrice(state.clipMinutes);
   
   if (state.videoFile) total += pricing.videoFile[state.videoFile];
-  if (state.subtitle) total += pricing.subtitle[state.subtitle];
+  if (state.subtitle) total += pricing.subtitle[state.subtitle] * state.clipMinutes;
   
   if (state.subtitle === 'add' && state.font) {
     total += pricing.font[state.font];
   }
   
   if (state.motionGraphics) {
-    let mPrice = pricing.motionGraphics[state.motionGraphics];
-    if (state.motionGraphics === 'add' && state.subtitle === 'add') mPrice = 100;
-    total += mPrice;
+    total += pricing.motionGraphics[state.motionGraphics] * state.clipMinutes;
   }
   
   if ((state.version === 'add1' || state.version === 'add2') && state.extra1) {
@@ -238,7 +276,20 @@ function encodeState() {
   // Pad minutes to 2 chars for consistent look
   const minsStr = String(state.clipMinutes).padStart(2, '0');
   
-  return `ybcms-${minsStr}-${hex}`;
+  let code = `ybcms-${minsStr}-${hex}`;
+  
+  const extraObj = {};
+  if (state.note) extraObj.n = state.note;
+  if (state.link) extraObj.l = state.link;
+  
+  if (Object.keys(extraObj).length > 0) {
+    try {
+      const extraStr = btoa(encodeURIComponent(JSON.stringify(extraObj)));
+      code += `-${extraStr}`;
+    } catch (e) {}
+  }
+  
+  return code;
 }
 
 function decodeState(codeStr) {
@@ -272,7 +323,7 @@ function render() {
   // Update counter
   clipMinutesEl.innerText = state.clipMinutes;
   
-  const clipTotal = state.clipMinutes * pricing.clipMinutes;
+  const clipTotal = getClipPrice(state.clipMinutes);
   if (currentClipTotal !== clipTotal) {
     if (currentClipTotal === 0) {
       clipPriceDisplayEl.innerText = clipTotal.toLocaleString() + ' ฿';
@@ -284,11 +335,7 @@ function render() {
 
   // Dynamic Motion Graphics Price UI
   const motionPriceEl = document.getElementById('motion-price-display');
-  if (state.subtitle === 'add') {
-    motionPriceEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-secondary); margin-right: 5px;">+200</span> <span style="color: var(--success-color);">+100</span>`;
-  } else {
-    motionPriceEl.innerHTML = `+200`;
-  }
+  motionPriceEl.innerHTML = `+100/นาที`;
 
   // Update active cards
   document.querySelectorAll('.option-card').forEach(card => {
@@ -321,21 +368,19 @@ function render() {
     summaryListEl.appendChild(li);
   };
 
-  addSummaryItem(`ความยาวคลิป: ${state.clipMinutes} นาที`, state.clipMinutes * pricing.clipMinutes);
+  addSummaryItem(`ความยาวคลิป: ${state.clipMinutes} นาที`, getClipPrice(state.clipMinutes));
   
   if (state.videoFile) addSummaryItem(labels.videoFile[state.videoFile], pricing.videoFile[state.videoFile]);
   
   if (state.subtitle) {
-    addSummaryItem(labels.subtitle[state.subtitle], pricing.subtitle[state.subtitle]);
+    addSummaryItem(labels.subtitle[state.subtitle], pricing.subtitle[state.subtitle] * state.clipMinutes);
     if (state.subtitle === 'add' && state.font) {
       addSummaryItem(`- ${labels.font[state.font]}`, pricing.font[state.font]);
     }
   }
   
   if (state.motionGraphics) {
-    let mPrice = pricing.motionGraphics[state.motionGraphics];
-    if (state.motionGraphics === 'add' && state.subtitle === 'add') mPrice = 100;
-    addSummaryItem(labels.motionGraphics[state.motionGraphics], mPrice);
+    addSummaryItem(labels.motionGraphics[state.motionGraphics], pricing.motionGraphics[state.motionGraphics] * state.clipMinutes);
   }
   
   if (state.version) {
@@ -383,7 +428,7 @@ function render() {
 
 // Copy button
 document.getElementById('copy-btn').addEventListener('click', () => {
-  const code = generatedCodeEl.innerText;
+  const code = generatedCodeEl.textContent;
   navigator.clipboard.writeText(code).then(() => {
     const btn = document.getElementById('copy-btn');
     btn.innerText = 'ก็อปปี้แล้ว!';
@@ -435,7 +480,7 @@ function handleSearch() {
   
   try {
     const pState = {};
-    const match = code.match(/^ybcms-(\d+)-([0-9a-f]+)$/i);
+    const match = code.match(/^ybcms-(\d+)-([0-9a-f]+)(?:-([a-zA-Z0-9+/=]+))?$/i);
     if (!match) throw new Error("Invalid Format");
     
     pState.clipMinutes = parseInt(match[1]);
@@ -464,19 +509,20 @@ function handleSearch() {
       receiptListEl.appendChild(li);
     };
 
-    addItem(`ความยาวคลิป: ${pState.clipMinutes} นาที`, pState.clipMinutes * pricing.clipMinutes);
-    let total = pState.clipMinutes * pricing.clipMinutes;
+    const clipPrice = getClipPrice(pState.clipMinutes);
+    addItem(`ความยาวคลิป: ${pState.clipMinutes} นาที`, clipPrice);
+    let total = clipPrice;
 
     if (pState.videoFile) { addItem(labels.videoFile[pState.videoFile], pricing.videoFile[pState.videoFile]); total += pricing.videoFile[pState.videoFile]; }
     if (pState.subtitle) {
-      addItem(labels.subtitle[pState.subtitle], pricing.subtitle[pState.subtitle]); total += pricing.subtitle[pState.subtitle];
+      const subPrice = pricing.subtitle[pState.subtitle] * pState.clipMinutes;
+      addItem(labels.subtitle[pState.subtitle], subPrice); total += subPrice;
       if (pState.subtitle === 'add' && pState.font) {
         addItem(`- ${labels.font[pState.font]}`, pricing.font[pState.font]); total += pricing.font[pState.font];
       }
     }
     if (pState.motionGraphics) { 
-      let mPrice = pricing.motionGraphics[pState.motionGraphics];
-      if (pState.motionGraphics === 'add' && pState.subtitle === 'add') mPrice = 100;
+      const mPrice = pricing.motionGraphics[pState.motionGraphics] * pState.clipMinutes;
       addItem(labels.motionGraphics[pState.motionGraphics], mPrice); 
       total += mPrice; 
     }
@@ -490,6 +536,24 @@ function handleSearch() {
       }
     }
     if (pState.thumbnail) { addItem(labels.thumbnail[pState.thumbnail], pricing.thumbnail[pState.thumbnail]); total += pricing.thumbnail[pState.thumbnail]; }
+
+    let extraObj = {};
+    if (match[3]) {
+      try {
+         extraObj = JSON.parse(decodeURIComponent(atob(match[3])));
+      } catch (e) {}
+    }
+    
+    if (extraObj.n) {
+      const noteLi = document.createElement('li');
+      noteLi.innerHTML = `<span class="receipt-label" style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">หมายเหตุ: <span style="font-size:0.85rem; color:var(--text-secondary); white-space:pre-wrap; margin-top:5px;">${extraObj.n}</span></span>`;
+      receiptListEl.appendChild(noteLi);
+    }
+    if (extraObj.l) {
+      const linkLi = document.createElement('li');
+      linkLi.innerHTML = `<span class="receipt-label" style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">ลิงก์งาน: <a href="${extraObj.l}" target="_blank" style="font-size:0.85rem; color:var(--accent-color); word-break:break-all; margin-top:5px;">${extraObj.l}</a></span>`;
+      receiptListEl.appendChild(linkLi);
+    }
 
     let discountAmount = 0;
     if (pState.discountCode === 'opcms') discountAmount = Math.floor(total * 0.10);
@@ -515,6 +579,88 @@ function handleSearch() {
   }
 }
 
+// --- Portfolio Logic ---
+
+const clientImages = [
+  "assets/clients/Ningwen.jpg",
+  "assets/clients/Theo.jpg",
+  "assets/clients/Thertis.jpg",
+  "assets/clients/aru.jpg",
+  "assets/clients/fakfang.jpg",
+  "assets/clients/kerori.png",
+  "assets/clients/leta.jpg",
+  "assets/clients/mirss.jpg",
+  "assets/clients/ngentong.jpg",
+  "assets/clients/pingpun.jpg",
+  "assets/clients/puma.jpg"
+];
+
+let titleAnimated = false;
+let portfolioRendered = false;
+
+function renderPortfolio() {
+  const marqueeContent = document.getElementById('marquee-content');
+  const marqueeClone = document.getElementById('marquee-content-clone');
+  if (!marqueeContent || !marqueeClone) return;
+  
+  if (!portfolioRendered) {
+    marqueeContent.innerHTML = '';
+    marqueeClone.innerHTML = '';
+    portfolioRendered = true;
+    
+    const titleEl = document.querySelector('.portfolio-title');
+    if (titleEl && !titleAnimated) {
+      const text = titleEl.innerText;
+      titleEl.innerHTML = '';
+      text.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.innerText = char === ' ' ? '\u00A0' : char;
+        span.style.animationDelay = `${i * 0.05}s`;
+        titleEl.appendChild(span);
+      });
+      titleAnimated = true;
+    }
+
+    clientImages.forEach((src, index) => {
+      const delay = index * 0.1;
+      
+      const wrapper1 = document.createElement('div');
+      wrapper1.className = 'client-item-wrapper';
+      wrapper1.style.animationDelay = `${0.5 + delay}s`;
+      wrapper1.innerHTML = `<div class="client-circle"><img src="${src}" alt="Client"></div>`;
+      marqueeContent.appendChild(wrapper1);
+      
+      const wrapper2 = document.createElement('div');
+      wrapper2.className = 'client-item-wrapper';
+      wrapper2.style.animationDelay = `${0.5 + (clientImages.length + index) * 0.1}s`;
+      wrapper2.innerHTML = `<div class="client-circle"><img src="${src}" alt="Client"></div>`;
+      marqueeClone.appendChild(wrapper2);
+    });
+  }
+}
+
+// Switch Views
+function showView(viewName) {
+  if (viewName === 'calc') {
+    tabCalc.classList.add('active');
+    tabPortfolio.classList.remove('active');
+    calculatorView.classList.remove('hidden-view');
+    portfolioView.classList.add('hidden-view');
+    stickyFooter.style.display = 'block';
+  } else if (viewName === 'portfolio') {
+    tabCalc.classList.remove('active');
+    tabPortfolio.classList.add('active');
+    calculatorView.classList.add('hidden-view');
+    portfolioView.classList.remove('hidden-view');
+    stickyFooter.style.display = 'none';
+    renderPortfolio();
+  }
+}
+
+tabCalc.addEventListener('click', () => showView('calc'));
+tabPortfolio.addEventListener('click', () => showView('portfolio'));
+
 // Initial render
 updateWizardNav();
 render();
+showView('portfolio');
