@@ -621,7 +621,13 @@ function renderPortfolio() {
       titleAnimated = true;
     }
 
-    clientImages.forEach((src, index) => {
+    let displayImages = [...clientImages];
+    // Duplicate images if there are too few to fill an ultrawide screen
+    while (displayImages.length < 25) {
+      displayImages = displayImages.concat(clientImages);
+    }
+
+    displayImages.forEach((src, index) => {
       const delay = index * 0.1;
       
       const wrapper1 = document.createElement('div');
@@ -632,7 +638,7 @@ function renderPortfolio() {
       
       const wrapper2 = document.createElement('div');
       wrapper2.className = 'client-item-wrapper';
-      wrapper2.style.animationDelay = `${0.5 + (clientImages.length + index) * 0.1}s`;
+      wrapper2.style.animationDelay = `${0.5 + (displayImages.length + index) * 0.1}s`;
       wrapper2.innerHTML = `<div class="client-circle"><img src="${src}" alt="Client"></div>`;
       marqueeClone.appendChild(wrapper2);
     });
